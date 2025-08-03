@@ -7,11 +7,12 @@ FROM linuxserver/jellyfin:10.10.7ubu2404-ls72
 # Switch to root for system modifications
 USER root
 
-# Install dependencies and remove existing jellyfin in single layer for efficiency
+# Install dependencies, OpenCL support, and remove existing jellyfin in single layer for efficiency
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
-        ca-certificates && \
+        ca-certificates \
+        ocl-icd-libopencl1 && \
     apt-get remove -y jellyfin && \
     apt-get autoremove -y && \
     apt-get clean && \
@@ -31,7 +32,9 @@ RUN test -f /opt/jellyfin/jellyfin || (echo "ERROR: jellyfin binary not found in
 
 # Create symbolic links to maintain compatibility (permissions already set in COPY)
 RUN chmod +x /opt/jellyfin/jellyfin && \
-    ln -sf /opt/jellyfin/jellyfin /usr/bin/jellyfin
+    ln -sf /opt/jellyfin/jellyfin /usr/bin/jellyfin && \
+    mkdir -p /usr/share/jellyfin && \
+    ln -sf /opt/jellyfin-web /usr/share/jellyfin/web
 
 # Create systemd service override to use our custom installation
 RUN mkdir -p /etc/systemd/system/jellyfin.service.d/
