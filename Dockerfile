@@ -41,31 +41,18 @@ RUN chmod +x /opt/jellyfin/jellyfin && \
     mkdir -p /usr/share/jellyfin && \
     ln -sf /opt/jellyfin-web /usr/share/jellyfin/web
 
-# Create systemd service override to use our custom installation
-RUN mkdir -p /etc/systemd/system/jellyfin.service.d/
-COPY <<EOF /etc/systemd/system/jellyfin.service.d/override.conf
-[Service]
-ExecStart=
-ExecStart=/opt/jellyfin/jellyfin \\
-    --datadir=/config \\
-    --cachedir=/config/cache \\
-    --configdir=/config/config \\
-    --logdir=/config/log \\
-    --webdir=/opt/jellyfin-web
-EOF
-
-# Update the s6 service for LinuxServer.io compatibility
-RUN mkdir -p /etc/s6-overlay/s6-rc.d/svc-jellyfin/
+# Override LinuxServer.io's existing jellyfin service to use our custom build
 COPY <<EOF /etc/s6-overlay/s6-rc.d/svc-jellyfin/run
 #!/usr/bin/with-contenv bash
 
 # Ensure PATH includes standard locations for ffmpeg and other tools
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Wait for config directory to be available
-until [ -d "/config" ]; do
-    sleep 1
-done
+# Apply standard LinuxServer.io permissions
+lsiown abc:abc \\
+    /config \\
+    /opt/jellyfin \\
+    /opt/jellyfin-web
 
 echo "Starting custom Jellyfin build..."
 cd /opt/jellyfin
@@ -83,9 +70,7 @@ RUN chmod +x /etc/s6-overlay/s6-rc.d/svc-jellyfin/run
 LABEL maintainer="Custom Jellyfin Build"
 LABEL description="LinuxServer Jellyfin image with custom Jellyfin build"
 
-# Expose the standard Jellyfin ports (inherited from base image)
-# Port 8096 for HTTP traffic, 8920 for HTTPS traffic
-# The LinuxServer base image already handles these
+# Ensure ports are explicitly exposed for accessibility
+EXPOSE 8096 8920
 
-# Health check (inherited from base image)
-# The LinuxServer base image already includes health check functionality
+# The LinuxServer base image health check should work with our custom binary
