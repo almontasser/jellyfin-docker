@@ -98,7 +98,9 @@ jobs:
           -p:DebugType=none \
           -p:UseAppHost=true \
           -p:PublishSingleFile=false \
-          -p:PublishReadyToRun=false
+          -p:PublishReadyToRun=false \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:PublishTrimmed=false
     
     - name: Build Jellyfin Web from source
       run: |

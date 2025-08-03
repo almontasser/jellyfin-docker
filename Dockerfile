@@ -7,12 +7,16 @@ FROM linuxserver/jellyfin:10.10.7ubu2404-ls72
 # Switch to root for system modifications
 USER root
 
-# Install dependencies, OpenCL support, and remove existing jellyfin in single layer for efficiency
+# Install dependencies, OpenCL support, and graphics libraries for SkiaSharp
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
-        ocl-icd-libopencl1 && \
+        ocl-icd-libopencl1 \
+        libfontconfig1 \
+        libfreetype6 \
+        libssl3 \
+        libc6-dev && \
     apt-get remove -y jellyfin && \
     apt-get autoremove -y && \
     apt-get clean && \
