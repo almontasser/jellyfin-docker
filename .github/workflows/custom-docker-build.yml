@@ -137,6 +137,7 @@ jobs:
           TARGETARCH=${{ matrix.arch }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        provenance: false
   
   create-manifest:
     needs: build-jellyfin
@@ -155,14 +156,12 @@ jobs:
     
     - name: Create and push multi-arch manifest
       run: |
-        # Create manifest for latest tag
-        docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-          --amend ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64 \
-          --amend ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
-        docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        # Create manifest for latest tag using buildx imagetools
+        docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64 \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
         
         # Create manifest for commit-specific tag
-        docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-          --amend ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-amd64 \
-          --amend ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-arm64
-        docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-amd64 \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-arm64
