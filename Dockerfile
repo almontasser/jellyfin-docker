@@ -14,7 +14,13 @@ RUN \
   apt-get install -y --no-install-recommends \
     at \
     mesa-va-drivers \
-    xmlstarlet && \
+    xmlstarlet \
+    ocl-icd-libopencl1 \
+    libfontconfig1 \
+    libfreetype6 \
+    libssl3 \
+    libc6-dev \
+    ffmpeg && \
   echo "**** cleanup ****" && \
   rm -rf \
     /tmp/* \
