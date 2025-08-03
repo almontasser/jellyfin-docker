@@ -18,7 +18,7 @@ RUN \
     at \
     mesa-va-drivers \
     xmlstarlet && \
-  apt-get install $(apt-cache depends jellyfin | grep "Depends:" | awk '{print $2}' | tr -d '<>') && \
+  apt-get install -y $(apt-cache depends jellyfin | grep "Depends:" | awk '{print $2}' | tr -d '<>') && \
   echo "**** cleanup ****" && \
   rm -rf \
     /tmp/* \
