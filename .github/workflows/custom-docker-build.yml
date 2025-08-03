@@ -57,7 +57,19 @@ jobs:
           ./checkout.py master
         fi
     
-    - name: Build Jellyfin from source
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: jellyfin-web/package-lock.json
+    
+    - name: Build Jellyfin Server from source
       run: |
         # Set architecture variables
         DOTNET_ARCH=${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}
@@ -73,40 +85,41 @@ jobs:
         
         echo "Using JELLYFIN_VERSION: $JELLYFIN_VERSION"
         
-        # Build server and web components using the existing build system
-        docker buildx build \
-          --platform linux/${{ matrix.arch }} \
-          --target server \
-          --build-arg DOTNET_ARCH=${DOTNET_ARCH} \
-          --build-arg JELLYFIN_VERSION=${JELLYFIN_VERSION} \
-          -t jellyfin-server-${{ matrix.arch }}:latest \
-          -f Dockerfile \
-          --load \
-          .
-        
-        docker buildx build \
-          --platform linux/${{ matrix.arch }} \
-          --target web \
-          --build-arg JELLYFIN_VERSION=${JELLYFIN_VERSION} \
-          -t jellyfin-web-${{ matrix.arch }}:latest \
-          -f Dockerfile \
-          --load \
-          .
-    
-    - name: Extract built artifacts
-      run: |
-        # Create extraction directories
+        # Create artifacts directory
         mkdir -p artifacts/server artifacts/web
         
-        # Extract server files
-        docker create --name temp-server jellyfin-server-${{ matrix.arch }}:latest
-        docker cp temp-server:/server/. artifacts/server/
-        docker rm temp-server
+        # Build Jellyfin Server
+        cd jellyfin-server
+        dotnet publish Jellyfin.Server \
+          --configuration Release \
+          --self-contained \
+          --runtime linux-$DOTNET_ARCH \
+          --output ../artifacts/server \
+          -p:DebugType=none \
+          -p:UseAppHost=true \
+          -p:PublishSingleFile=false \
+          -p:PublishReadyToRun=false
+    
+    - name: Build Jellyfin Web from source
+      run: |
+        # Build Jellyfin Web
+        cd jellyfin-web
+        npm ci --no-audit
+        npm run build:production
         
-        # Extract web files  
-        docker create --name temp-web jellyfin-web-${{ matrix.arch }}:latest
-        docker cp temp-web:/web/. artifacts/web/
-        docker rm temp-web
+        # Copy built web files to artifacts
+        cp -r dist/* ../artifacts/web/
+    
+    - name: Verify built artifacts
+      run: |
+        # Verify that artifacts were built successfully
+        echo "Checking server artifacts..."
+        ls -la artifacts/server/
+        test -f artifacts/server/jellyfin || (echo "ERROR: jellyfin binary not found" && exit 1)
+        
+        echo "Checking web artifacts..."
+        ls -la artifacts/web/
+        test -f artifacts/web/index.html || (echo "ERROR: web index.html not found" && exit 1)
 
     - name: Build Docker image
       uses: docker/build-push-action@v5
