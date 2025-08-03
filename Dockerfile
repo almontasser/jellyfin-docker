@@ -7,7 +7,7 @@ FROM linuxserver/jellyfin:10.10.7ubu2404-ls72
 # Switch to root for system modifications
 USER root
 
-# Install dependencies, OpenCL support, and graphics libraries for SkiaSharp
+# Install dependencies, OpenCL support, graphics libraries, and ffmpeg for media processing
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -16,7 +16,8 @@ RUN apt-get update && \
         libfontconfig1 \
         libfreetype6 \
         libssl3 \
-        libc6-dev && \
+        libc6-dev \
+        ffmpeg && \
     apt-get remove -y jellyfin && \
     apt-get autoremove -y && \
     apt-get clean && \
@@ -57,6 +58,9 @@ EOF
 RUN mkdir -p /etc/s6-overlay/s6-rc.d/svc-jellyfin/
 COPY <<EOF /etc/s6-overlay/s6-rc.d/svc-jellyfin/run
 #!/usr/bin/with-contenv bash
+
+# Ensure PATH includes standard locations for ffmpeg and other tools
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # Wait for config directory to be available
 until [ -d "/config" ]; do
