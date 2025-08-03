@@ -1,0 +1,147 @@
+name: Build Jellyfin Docker Image
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      jellyfin_version:
+        description: 'Jellyfin version tag'
+        required: false
+        default: 'main'
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/jellyfin
+
+jobs:
+  build-jellyfin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Update submodules to target version
+      run: |
+        if [ "${{ github.event.inputs.jellyfin_version }}" != "" ]; then
+          ./checkout.py ${{ github.event.inputs.jellyfin_version }}
+        else
+          ./checkout.py master
+        fi
+    
+    - name: Build Jellyfin from source
+      run: |
+        # Set architecture variables
+        DOTNET_ARCH=${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}
+          # Set version using the same logic as jellyfin build system                                                                                                                                             │ │
+          if [ "${{ github.event.inputs.jellyfin_version }}" = "" ] || [ "${{ github.event.inputs.jellyfin_version }}" = "master" ]; then                                                                         │ │
+            JELLYFIN_VERSION=$(date +%Y%m%d%H)                                                                                                                                                                    │ │
+          else                                                                                                                                                                                                    │ │
+            JELLYFIN_VERSION="${{ github.event.inputs.jellyfin_version }}"                                                                                                                                        │ │
+            # Remove 'v' prefix if present (same as build.py does)                                                                                                                                                │ │
+            JELLYFIN_VERSION=${JELLYFIN_VERSION#v}                                                                                                                                                                │ │
+          fi                                                                                                                                                                                                      │ │
+                                                                                                                                                                                                                  │ │
+          echo "Using JELLYFIN_VERSION: $JELLYFIN_VERSION"                                                                                                                                                        │ │
+        
+        # Build server and web components using the existing build system
+        docker buildx build \
+          --platform linux/${{ matrix.arch }} \
+          --target server \
+          --build-arg DOTNET_ARCH=${DOTNET_ARCH} \
+          --build-arg JELLYFIN_VERSION=${JELLYFIN_VERSION} \
+          -t jellyfin-server-${{ matrix.arch }}:latest \
+          -f Dockerfile \
+          --load \
+          .
+        
+        docker buildx build \
+          --platform linux/${{ matrix.arch }} \
+          --target web \
+          --build-arg JELLYFIN_VERSION=${JELLYFIN_VERSION} \
+          -t jellyfin-web-${{ matrix.arch }}:latest \
+          -f Dockerfile \
+          --load \
+          .
+    
+    - name: Extract built artifacts
+      run: |
+        # Create extraction directories
+        mkdir -p artifacts/server artifacts/web
+        
+        # Extract server files
+        docker create --name temp-server jellyfin-server-${{ matrix.arch }}:latest
+        docker cp temp-server:/server/. artifacts/server/
+        docker rm temp-server
+        
+        # Extract web files  
+        docker create --name temp-web jellyfin-web-${{ matrix.arch }}:latest
+        docker cp temp-web:/web/. artifacts/web/
+        docker rm temp-web
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: linux/${{ matrix.arch }}
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ matrix.arch }}
+        build-args: |
+          TARGETARCH=${{ matrix.arch }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+  
+  create-manifest:
+    needs: build-jellyfin
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Create and push multi-arch manifest
+      run: |
+        # Create manifest for latest tag
+        docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+          --amend ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64 \
+          --amend ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
+        docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        
+        # Create manifest for commit-specific tag
+        docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          --amend ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-amd64 \
+          --amend ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-arm64
+        docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
