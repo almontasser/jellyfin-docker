@@ -61,16 +61,17 @@ jobs:
       run: |
         # Set architecture variables
         DOTNET_ARCH=${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}
-          # Set version using the same logic as jellyfin build system                                                                                                                                             │ │
-          if [ "${{ github.event.inputs.jellyfin_version }}" = "" ] || [ "${{ github.event.inputs.jellyfin_version }}" = "master" ]; then                                                                         │ │
-            JELLYFIN_VERSION=$(date +%Y%m%d%H)                                                                                                                                                                    │ │
-          else                                                                                                                                                                                                    │ │
-            JELLYFIN_VERSION="${{ github.event.inputs.jellyfin_version }}"                                                                                                                                        │ │
-            # Remove 'v' prefix if present (same as build.py does)                                                                                                                                                │ │
-            JELLYFIN_VERSION=${JELLYFIN_VERSION#v}                                                                                                                                                                │ │
-          fi                                                                                                                                                                                                      │ │
-                                                                                                                                                                                                                  │ │
-          echo "Using JELLYFIN_VERSION: $JELLYFIN_VERSION"                                                                                                                                                        │ │
+        
+        # Set version using the same logic as jellyfin build system
+        if [ "${{ github.event.inputs.jellyfin_version }}" = "" ] || [ "${{ github.event.inputs.jellyfin_version }}" = "master" ]; then
+          JELLYFIN_VERSION=$(date +%Y%m%d%H)
+        else
+          JELLYFIN_VERSION="${{ github.event.inputs.jellyfin_version }}"
+          # Remove 'v' prefix if present (same as build.py does)
+          JELLYFIN_VERSION=${JELLYFIN_VERSION#v}
+        fi
+        
+        echo "Using JELLYFIN_VERSION: $JELLYFIN_VERSION"
         
         # Build server and web components using the existing build system
         docker buildx build \
