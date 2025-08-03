@@ -17,13 +17,8 @@ RUN \
   apt-get install -y --no-install-recommends \
     at \
     mesa-va-drivers \
-    xmlstarlet \
-    ocl-icd-libopencl1 \
-    libfontconfig1 \
-    libfreetype6 \
-    libssl3 \
-    libc6-dev \
-    jellyfin-ffmpeg && \
+    xmlstarlet && \
+  apt-get install $(apt-cache depends jellyfin | grep "Depends:" | awk '{print $2}' | tr -d '<>') && \
   echo "**** cleanup ****" && \
   rm -rf \
     /tmp/* \
