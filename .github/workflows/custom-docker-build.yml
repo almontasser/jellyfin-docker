@@ -44,6 +44,11 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install GitPython
+    
     - name: Update submodules to target version
       run: |
         if [ "${{ github.event.inputs.jellyfin_version }}" != "" ]; then
