@@ -132,7 +132,7 @@ jobs:
         platforms: linux/${{ matrix.arch }}
         push: true
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }}-${{ matrix.arch }}
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ matrix.arch }}
         build-args: |
           TARGETARCH=${{ matrix.arch }}
