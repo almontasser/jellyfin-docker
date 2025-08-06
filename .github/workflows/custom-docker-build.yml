@@ -157,11 +157,10 @@ jobs:
     
     - name: Create and push multi-arch manifest
       run: |
-        # Create manifest for latest tag using buildx imagetools
-        docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64
-          # ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-amd64 \
-          # ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
+        docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }} \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }}-amd64
+          # ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }}-amd64 \
+          # ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }}-arm64
         
         # Create manifest for commit-specific tag
         docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
