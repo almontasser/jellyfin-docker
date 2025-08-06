@@ -23,6 +23,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      jellyfin_version: ${{ steps.set_version.outputs.jellyfin_version }}
     
     strategy:
       matrix:
@@ -50,6 +52,18 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
+    - name: Set Jellyfin version output
+      id: set_version
+      run: |
+        if [ "${{ github.event.inputs.jellyfin_version }}" = "" ] || [ "${{ github.event.inputs.jellyfin_version }}" = "master" ]; then
+          JELLYFIN_VERSION=$(git -C jellyfin-server describe --tags --abbrev=0)
+        else
+          JELLYFIN_VERSION="${{ github.event.inputs.jellyfin_version }}"
+        fi
+        JELLYFIN_VERSION=${JELLYFIN_VERSION#v}
+        echo "jellyfin_version=$JELLYFIN_VERSION" >> $GITHUB_OUTPUT
+
+
     - name: Install Python dependencies
       run: |
         python3 -m pip install --upgrade pip
@@ -57,11 +71,7 @@ jobs:
     
     - name: Update submodules to target version
       run: |
-        if [ "${{ github.event.inputs.jellyfin_version }}" != "" ]; then
-          ./checkout.py ${{ github.event.inputs.jellyfin_version }}
-        else
-          ./checkout.py master
-        fi
+          ./checkout.py ${{ steps.set_version.outputs.jellyfin_version }}
     
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
@@ -81,13 +91,7 @@ jobs:
         DOTNET_ARCH=${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}
         
         # Set version using the same logic as jellyfin build system
-        if [ "${{ github.event.inputs.jellyfin_version }}" = "" ] || [ "${{ github.event.inputs.jellyfin_version }}" = "master" ]; then
-          JELLYFIN_VERSION=$(date +%Y%m%d%H)
-        else
-          JELLYFIN_VERSION="${{ github.event.inputs.jellyfin_version }}"
-          # Remove 'v' prefix if present (same as build.py does)
-          JELLYFIN_VERSION=${JELLYFIN_VERSION#v}
-        fi
+        JELLYFIN_VERSION=${{ steps.set_version.outputs.jellyfin_version }}
         
         echo "Using JELLYFIN_VERSION: $JELLYFIN_VERSION"
         
@@ -124,7 +128,7 @@ jobs:
         echo "Checking server artifacts..."
         ls -la artifacts/server/
         test -f artifacts/server/jellyfin || (echo "ERROR: jellyfin binary not found" && exit 1)
-        
+
         echo "Checking web artifacts..."
         ls -la artifacts/web/
         test -f artifacts/web/index.html || (echo "ERROR: web index.html not found" && exit 1)
@@ -137,14 +141,14 @@ jobs:
         platforms: linux/${{ matrix.arch }}
         push: true
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }}-${{ matrix.arch }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set_version.outputs.jellyfin_version }}-${{ matrix.arch }}
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ matrix.arch }}
         build-args: |
           TARGETARCH=${{ matrix.arch }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         provenance: false
-  
+
   create-manifest:
     needs: build-jellyfin
     runs-on: ubuntu-latest
@@ -162,11 +166,11 @@ jobs:
     
     - name: Create and push multi-arch manifest
       run: |
-        docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }} \
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }}-amd64
-          # ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }}-amd64 \
-          # ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.jellyfin_version }}-arm64
-        
+        docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-jellyfin.outputs.jellyfin_version }} \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-jellyfin.outputs.jellyfin_version }}-amd64
+          # ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-jellyfin.outputs.jellyfin_version }}-amd64 \
+          # ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-jellyfin.outputs.jellyfin_version }}-arm64
+
         # Create manifest for commit-specific tag
         docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-amd64
