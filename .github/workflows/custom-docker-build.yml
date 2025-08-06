@@ -9,8 +9,8 @@ on:
     inputs:
       jellyfin_version:
         description: 'Jellyfin version tag'
-        required: false
-        default: 'main'
+        required: true
+        default: 'v10.10.7'
         type: string
 
 env:
